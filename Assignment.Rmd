@@ -1,0 +1,60 @@
+---
+title: "Machine Learning — Assignment"
+author: "Mada"
+date: "February 16, 2015"
+output: html_document
+---
+PROBLEM STATEMENT:
+
+For the practical machine learning, we are asked to develop a predictive model based on a sample set of subjects wearing accelermoters.  The goal is to predict the manner in which they did the exercise -- that is to, to predict "classe" based on the other measured variables.  The following background has been supplied:
+
+"Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)."
+
+This report describes how I built the  model, how  I used cross validation, what I think the expected out of sample error is, and why I made the choices I did. 
+
+DATA LOADING AND PREPARATION:
+
+The first code chunk loads the data from a local repository, drops variables with significant data gaps, and reduces the variables to just those that would possibly be meaningful to the analysis.  Specifically, I have eliminated NA's and dropped non-quantified / non-relevant variables such as Identifiers, Names, Date Stamps and measurement Windows.  To prepare for the subsequent analysis, I've loaded the caret library upfront. 
+
+
+```{r}
+library(caret)
+setwd("~/Desktop/Coursera/MachineLearning")
+data_set<-read.csv(file="pml-training.csv", na.strings=c("NA","NaN", ""), header=TRUE, sep=",")
+clean_data<-data_set[ , ! apply( data_set, 2 , function(x) any(is.na(x)) ) ]
+colnames(clean_data)
+clean_data<-clean_data[,-c(1,2,3,4,5,6,7,20)]
+```
+
+MODEL BUILDING:
+
+As per good practice, I've first set a consistent seed and then divided my clean data set into  partitions in the proportions of 75% training and 25% testing.  I planned to create two different models for initial comparisons -- ModFit1  based on the basic Trees method and ModFit2 on the possibly more accurate Random Forest method.  The former model has some advantages including speed, but I expect the latter to prove more accurage given it's deeply recursive nature and the number of variables I've included in the model.  As my computing power is limited, I've set the the number of trees to a modest ntree=20.  For each model, I've displayed the final fit.  The first model, modFit1, came out poorly with only ~52% accuracy, but as expected, the second model looks to be the superior with accuracy of greater than 98% and error rate of less than 2%.  
+
+```{r,}
+set.seed(1111)
+partitioned = createDataPartition(clean_data$classe, p = 3/4)[[1]]
+for_training = clean_data[ partitioned,]
+for_testing = clean_data[-partitioned,]
+modFit1<-train(classe~.,method="rpart",data=for_training)
+modFit1
+modFit2<-train(classe~.,method="rf",data=for_training,ntree=20)
+modFit2
+```
+
+CROSS VALIDATION & ERROR TESTING
+
+While the model I've built looks promising, I now need to prove it out through cross validation using the remainder of the original data set set aside for testing.  Using the prediction function, I apply modFit2 to the testing data. As a simple validation, I've used an example from class to construct a quick table to show my predictions versus real values.  
+
+```{r,}
+predictions<-predict(modFit2,newdata=for_testing)
+for_testing$predRight<-predictions==for_testing$classe
+table(predictions,for_testing$classe)
+```
+
+As the table still shows a good degree of accuracy, I'm going to proceed with this model to the final validation.  Presented next is the Confusion Matrix which will show specific statistics in addition to the accuracy table.  Again, I am using the predictions, ModFit2, and the testing data.
+
+```{r,}
+confusionMatrix(predictions,for_testing$classe)
+```
+
+As you can see, against the test data set, the in-sample accuracy rating is now gauged at greater than 99%  meaning the in-sample error rate is ~1%  This is slightly better than what was predicted in the training model.   Based on this cross validation, I'm confident that the model is sufficiently accurate to pass the twenty test cases required for this class.  
